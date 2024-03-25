@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Carte des stations Velib</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        #map { height:100vh; }
+        .velib-marker-icon {
+            background-size: contain;
+            width: 25px;
+            height: 41px;
+        }
+    </style>
+</head>
+<body>
+    <form id="addressForm">
+        <input type="text" id="addressInput" placeholder="Entrez une adresse sur Paris" />
+        <button type="submit">Rechercher</button>
+    </form>
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        var map = L.map('map');
+        var velibData = [
+            { name: '1', latitude: 48.1234, longitude: 2.5678 },
+            { name: '2', latitude: 48.2345, longitude: 2.6789 },
+        ];
+
+        function onLocationFound(e) {
+            var userCoords = e.latlng;
+            map.setView(userCoords, 14);
+
+            // Ajout marker
+            L.marker(userCoords).addTo(map)
+                .bindPopup("Votre position");
+
+            // Position
+            velibData.forEach(function(station) {
+                var distance = e.latlng.distanceTo([station.latitude, station.longitude]);
+                if (distance <= 1000) {
+                    L.marker([station.latitude, station.longitude], { icon: L.divIcon({ className: 'velib-marker-icon' }) }).addTo(map)
+                        .bindPopup(station.name + "<br>Distance: " + distance.toFixed(2) + " m");
+                }
+            });
+        }
+
+        function onLocationError(e) {
+            alert(e.message);
+        }
+
+        function searchAddress(e) {
+            e.preventDefault();
+            var address = document.getElementById('addressInput').value;
+            if (address.trim() === '') {
+                alert("Veuillez entrer une adresse.");
+                return;
+            }
+
+            fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(address) + '&format=json')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.length > 0) {
+                        var addressCoords = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+
+                        map.setView(addressCoords, 14);
+
+                        L.marker(addressCoords).addTo(map)
+                            .bindPopup(address);
+
+                        velibData.forEach(function(station) {
+                            var distance = addressCoords.distanceTo([station.latitude, station.longitude]);
+                            if (distance <= 1000) {
+                                L.marker([station.latitude, station.longitude], { icon: L.divIcon({ className: 'velib-marker-icon' }) }).addTo(map)
+                                    .bindPopup(station.name + "<br>Distance: " + distance.toFixed(2) + " m");
+                            }
+                        });
+                    } else {
+                        alert("Adresse non trouvée. Veuillez entrer une adresse valide.");
+                    }
+                })
+                .catch(error => {
+                    console.error("Une erreur s'est produite lors de la recherche d'adresse:", error);
+                });
+        }
+
+        map.on('locationfound', onLocationFound);
+        map.on('locationerror', onLocationError);
+
+        map.locate({setView: true, maxZoom: 16});
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+        }).addTo(map);
+
+        document.getElementById('addressForm').addEventListener('submit', searchAddress);
+    </script>
+</body>
+</html>
